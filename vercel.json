@@ -1,0 +1,5 @@
+{
+  "trailingSlash": true,
+  "builds": [{ "src": "hng_stage2/wsgi.py", "use": "@vercel/python" }],
+  "routes": [{ "src": "/(.*)", "dest": "hng_stage2/wsgi.py" }]
+}
