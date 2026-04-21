@@ -47,8 +47,7 @@ Delete a profile.
   - No support for name‑based or probability‑based natural queries.
 
 ## Deployment
-Live at: https://demographic-query-engine.vercel.app (replace with your actual URL)
-
+Live at: https://demographic-query-engine.vercel.app
 ## Local Setup
 1. Clone repo
 2. Create virtual environment
