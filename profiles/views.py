@@ -12,6 +12,8 @@ from django.http import JsonResponse
 from django.core.management import call_command
 
 
+def health_check(request):
+    return JsonResponse({"status": "ok", "database_connected": Profile.objects.exists()})
 
 # class SeedDatabaseView(APIView):
 #     def get(self, request):
