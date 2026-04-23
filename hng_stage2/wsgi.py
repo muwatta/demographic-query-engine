@@ -16,3 +16,4 @@ if os.environ.get('VERCEL') or os.environ.get('VERCEL_ENV'):
 
 application = get_wsgi_application()
 app = application
+
