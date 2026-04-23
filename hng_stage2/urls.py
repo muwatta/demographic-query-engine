@@ -1,5 +1,5 @@
 from django.urls import path
-from profiles.views import ProfileListView, NaturalLanguageSearchView, ProfileDetailView, SeedDatabaseView
+from profiles.views import ProfileListView, NaturalLanguageSearchView, ProfileDetailView
 
 urlpatterns = [
     # path('api/seed/', SeedDatabaseView.as_view()),
