@@ -8,7 +8,19 @@ from .models import Profile
 from .serializers import ProfileListSerializer, ProfileDetailSerializer
 from .filters import ProfileFilter
 from .nlp_parser import parse_query
+from django.http import JsonResponse
+from django.core.management import call_command
 
+
+
+class SeedDatabaseView(APIView):
+    def get(self, request):
+        try:
+            call_command('seed_profiles')
+            return JsonResponse({"status": "success", "message": "Database seeded"})
+        except Exception as e:
+            return JsonResponse({"status": "error", "message": str(e)}, status=500)
+        
 # Pagination
 class StandardResultsSetPagination(PageNumberPagination):
     page_size = 10
@@ -29,10 +41,25 @@ class ProfileListView(APIView):
             )
         queryset = filterset.qs
 
-        # Sorting
+        # Sorting validation
         sort_by = request.GET.get('sort_by')
         order = request.GET.get('order', 'asc')
-        if sort_by in ['age', 'created_at', 'gender_probability']:
+        allowed_sort_fields = ['age', 'created_at', 'gender_probability']
+        if sort_by and sort_by not in allowed_sort_fields:
+            return Response(
+                {"status": "error", "message": "Invalid query parameters"},
+                status=status.HTTP_400_BAD_REQUEST,
+                headers={"Access-Control-Allow-Origin": "*"}
+            )
+        if order not in ['asc', 'desc']:
+            return Response(
+                {"status": "error", "message": "Invalid query parameters"},
+                status=status.HTTP_400_BAD_REQUEST,
+                headers={"Access-Control-Allow-Origin": "*"}
+            )
+
+        # Apply sorting
+        if sort_by:
             if order == 'desc':
                 sort_by = f'-{sort_by}'
             queryset = queryset.order_by(sort_by)
@@ -49,7 +76,6 @@ class ProfileListView(APIView):
             "total": queryset.count(),
             "data": serializer.data
         }, headers={"Access-Control-Allow-Origin": "*"})
-
 # Natural language search
 class NaturalLanguageSearchView(APIView):
     def get(self, request):
