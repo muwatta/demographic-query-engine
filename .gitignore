@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Django
+*.log
+db.sqlite3
+*.sqlite3
+/media/
+/static/
+
+# Environment variables
+.env
+*.env
+
+# Vercel (optional, but keeps local cache out)
+.vercel/
+
+# IDE
+.vscode/
+.idea/
+*.swp
