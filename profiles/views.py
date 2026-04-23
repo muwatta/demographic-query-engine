@@ -13,13 +13,13 @@ from django.core.management import call_command
 
 
 
-class SeedDatabaseView(APIView):
-    def get(self, request):
-        try:
-            call_command('seed_profiles')
-            return JsonResponse({"status": "success", "message": "Database seeded"})
-        except Exception as e:
-            return JsonResponse({"status": "error", "message": str(e)}, status=500)
+# class SeedDatabaseView(APIView):
+#     def get(self, request):
+#         try:
+#             call_command('seed_profiles')
+#             return JsonResponse({"status": "success", "message": "Database seeded"})
+#         except Exception as e:
+#             return JsonResponse({"status": "error", "message": str(e)}, status=500)
         
 # Pagination
 class StandardResultsSetPagination(PageNumberPagination):
