@@ -1,5 +1,6 @@
 from django.urls import path, include
 from profiles.views import ProfileListView, NaturalLanguageSearchView, ProfileDetailView, ProfileExportView, health_check, ProfileCreateView
+from users.views import GitHubCallbackView
 
 urlpatterns = [
     path('', include('users.urls')),
@@ -9,4 +10,5 @@ urlpatterns = [
     path('api/profiles/export/', ProfileExportView.as_view()),
     path('api/profiles/<uuid:id>/', ProfileDetailView.as_view()),
     path('api/profiles/create/', ProfileCreateView.as_view()),
+    path('auth/github/callback', GitHubCallbackView.as_view()),
 ]
