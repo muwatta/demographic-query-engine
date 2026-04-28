@@ -83,6 +83,7 @@ class RateLimitedView(APIView):
 
 # ---------- Web OAuth Start ----------
 class GitHubAuthStartView(RateLimitedView):
+    permission_classes = []
     def get(self, request):
         state = generate_state()
         request.session['oauth_state'] = state
