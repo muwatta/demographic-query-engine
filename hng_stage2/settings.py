@@ -2,10 +2,17 @@ from pathlib import Path
 import dj_database_url
 import os
 
+import os
+GITHUB_CLIENT_ID = os.environ.get('GITHUB_CLIENT_ID')
+GITHUB_CLIENT_SECRET = os.environ.get('GITHUB_CLIENT_SECRET')
+JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY')
+BASE_URL = os.environ.get('BASE_URL', 'http://localhost:8000')
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'django-insecure-trn_)g)xi$dcqx)9m&@0ahjkr-*i8cdr(s8v#@!l8t^7@@1-3g'
 DEBUG = False
+USE_HTTPS = not DEBUG 
 
 ALLOWED_HOSTS = ['.vercel.app', 'localhost', '127.0.0.1']
 
@@ -20,10 +27,13 @@ INSTALLED_APPS = [
     'corsheaders',
     'django_filters',
     'profiles',
+    'users',
 ]
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
+    'users.middleware.APIVersionMiddleware',  
+    'users.middleware.RequestLogMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -31,9 +41,25 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+
 ]
 
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'users.authentication.CustomJWTAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ]
+}
+#   JWT
+JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')  # Strong random string
+JWT_ALGORITHM = 'HS256'
+ACCESS_TOKEN_LIFETIME_SECONDS = 15 * 60   # 15 minutes
+REFRESH_TOKEN_LIFETIME_SECONDS = 7 * 24 * 3600  # 7 days
 CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOWED_ORIGINS = ['https://your-web-portal.vercel.app']
+
 ROOT_URLCONF = 'hng_stage2.urls'
 
 TEMPLATES = [

@@ -8,78 +8,62 @@ from .models import Profile
 from .serializers import ProfileListSerializer, ProfileDetailSerializer
 from .filters import ProfileFilter
 from .nlp_parser import parse_query
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.core.management import call_command
-
+import csv
+from datetime import datetime
+from users.permissions import IsAdmin, IsAnalyst
 
 def health_check(request):
     return JsonResponse({"status": "ok", "database_connected": Profile.objects.exists()})
 
-# class SeedDatabaseView(APIView):
-#     def get(self, request):
-#         try:
-#             call_command('seed_profiles')
-#             return JsonResponse({"status": "success", "message": "Database seeded"})
-#         except Exception as e:
-#             return JsonResponse({"status": "error", "message": str(e)}, status=500)
-        
-# Pagination
+# Pagination with required envelope (total_pages + links)
 class StandardResultsSetPagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = 'limit'
     max_page_size = 50
     page_query_param = 'page'
 
-# List view with filtering, sorting, pagination
-class ProfileListView(APIView):
-    def get(self, request):
-        # Filtering
-        filterset = ProfileFilter(request.GET, queryset=Profile.objects.all())
-        if not filterset.is_valid():
-            return Response(
-                {"status": "error", "message": "Invalid query parameters"},
-                status=status.HTTP_400_BAD_REQUEST,
-                headers={"Access-Control-Allow-Origin": "*"}
-            )
-        queryset = filterset.qs
+    def get_paginated_response(self, data):
+        return Response({
+            'status': 'success',
+            'page': self.page.number,
+            'limit': self.page.paginator.per_page,
+            'total': self.page.paginator.count,
+            'total_pages': self.page.paginator.num_pages,
+            'links': {
+                'self': self.request.build_absolute_uri(),
+                'next': self.get_next_link(),
+                'prev': self.get_previous_link(),
+            },
+            'data': data
+        })
 
-        # Sorting validation
-        sort_by = request.GET.get('sort_by')
-        order = request.GET.get('order', 'asc')
-        allowed_sort_fields = ['age', 'created_at', 'gender_probability']
-        if sort_by and sort_by not in allowed_sort_fields:
-            return Response(
-                {"status": "error", "message": "Invalid query parameters"},
-                status=status.HTTP_400_BAD_REQUEST,
-                headers={"Access-Control-Allow-Origin": "*"}
-            )
-        if order not in ['asc', 'desc']:
-            return Response(
-                {"status": "error", "message": "Invalid query parameters"},
-                status=status.HTTP_400_BAD_REQUEST,
-                headers={"Access-Control-Allow-Origin": "*"}
-            )
+# Profile list – now uses DRF's ListAPIView for clean pagination
+from rest_framework.generics import ListAPIView
+class ProfileListView(ListAPIView):
+    queryset = Profile.objects.all()
+    serializer_class = ProfileListSerializer
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_class = ProfileFilter
+    ordering_fields = ['age', 'created_at', 'gender_probability']
+    pagination_class = StandardResultsSetPagination
+    permission_classes = [IsAnalyst]
 
-        # Apply sorting
-        if sort_by:
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        sort_by = self.request.query_params.get('sort_by')
+        order = self.request.query_params.get('order', 'asc')
+        if sort_by in self.ordering_fields:
             if order == 'desc':
                 sort_by = f'-{sort_by}'
             queryset = queryset.order_by(sort_by)
+        return queryset
 
-        # Pagination
-        paginator = StandardResultsSetPagination()
-        page = paginator.paginate_queryset(queryset, request)
-        serializer = ProfileListSerializer(page, many=True)
-
-        return Response({
-            "status": "success",
-            "page": paginator.page.number,
-            "limit": paginator.page_size,
-            "total": queryset.count(),
-            "data": serializer.data
-        }, headers={"Access-Control-Allow-Origin": "*"})
-# Natural language search
+# Natural language search – keep custom logic but use same pagination envelope
 class NaturalLanguageSearchView(APIView):
+    permission_classes = [IsAnalyst]
+
     def get(self, request):
         q = request.GET.get('q', '').strip()
         if not q:
@@ -112,17 +96,30 @@ class NaturalLanguageSearchView(APIView):
         paginator = StandardResultsSetPagination()
         page = paginator.paginate_queryset(queryset, request)
         serializer = ProfileListSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
-        return Response({
-            "status": "success",
-            "page": paginator.page.number,
-            "limit": paginator.page_size,
-            "total": queryset.count(),
-            "data": serializer.data
-        }, headers={"Access-Control-Allow-Origin": "*"})
 
-# Single profile detail view (already exists, keep as is)
+class ProfileCreateView(APIView):
+    permission_classes = [IsAdmin]
+
+    def post(self, request):
+        name = request.data.get('name')
+        if not name:
+            return Response({'status': 'error', 'message': 'name required'}, status=400)
+        # Assume you have the get_name_data function from Stage 1
+        from .services import get_name_data
+        try:
+            data = get_name_data(name)
+        except Exception as e:
+            return Response({'status': 'error', 'message': str(e)}, status=502)
+        profile = Profile.objects.create(name=name, **data)
+        serializer = ProfileDetailSerializer(profile)
+        return Response({'status': 'success', 'data': serializer.data}, status=201)
+
+# Single profile detail view – both admin and analyst can read, only admin can delete
 class ProfileDetailView(APIView):
+    permission_classes = [IsAnalyst]
+
     def get(self, request, id):
         try:
             profile = Profile.objects.get(id=id)
@@ -139,6 +136,12 @@ class ProfileDetailView(APIView):
         }, headers={"Access-Control-Allow-Origin": "*"})
 
     def delete(self, request, id):
+        if request.user.role != 'admin':
+            return Response(
+                {"status": "error", "message": "Forbidden"},
+                status=status.HTTP_403_FORBIDDEN,
+                headers={"Access-Control-Allow-Origin": "*"}
+            )
         try:
             profile = Profile.objects.get(id=id)
         except Profile.DoesNotExist:
@@ -149,3 +152,33 @@ class ProfileDetailView(APIView):
             )
         profile.delete()
         return Response(status=status.HTTP_204_NO_CONTENT, headers={"Access-Control-Allow-Origin": "*"})
+
+# CSV export
+class ProfileExportView(APIView):
+    permission_classes = [IsAnalyst]
+
+    def get(self, request):
+        filterset = ProfileFilter(request.GET, queryset=Profile.objects.all())
+        if not filterset.is_valid():
+            return Response({'status': 'error', 'message': 'Invalid filters'}, status=400)
+        queryset = filterset.qs
+
+        # apply sorting if any
+        sort_by = request.GET.get('sort_by')
+        order = request.GET.get('order', 'asc')
+        if sort_by in ['age', 'created_at', 'gender_probability']:
+            if order == 'desc':
+                sort_by = f'-{sort_by}'
+            queryset = queryset.order_by(sort_by)
+
+        response = HttpResponse(content_type='text/csv')
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        response['Content-Disposition'] = f'attachment; filename="profiles_{timestamp}.csv"'
+        writer = csv.writer(response)
+        writer.writerow(['id', 'name', 'gender', 'gender_probability', 'age', 'age_group',
+                         'country_id', 'country_name', 'country_probability', 'created_at'])
+        for p in queryset:
+            writer.writerow([p.id, p.name, p.gender, p.gender_probability,
+                             p.age, p.age_group, p.country_id, p.country_name,
+                             p.country_probability, p.created_at.isoformat()])
+        return response
