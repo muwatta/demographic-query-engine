@@ -75,13 +75,11 @@ def exchange_github_code_for_user(code, redirect_uri, code_verifier=None):
     
     return user, None
 
-# ---------- Rate‑limited mixin ----------
 class RateLimitedView(APIView):
     @method_decorator(ratelimit(key='ip', rate='10/m', method='ALL'))
     def dispatch(self, *args, **kwargs):
         return super().dispatch(*args, **kwargs)
 
-# ---------- Web OAuth Start ----------
 class GitHubAuthStartView(RateLimitedView):
     permission_classes = []
     def get(self, request):
@@ -99,6 +97,7 @@ class GitHubAuthStartView(RateLimitedView):
 
 # ---------- Web OAuth Callback ----------
 class GitHubCallbackView(RateLimitedView):
+    permission_classes = []
     def get(self, request):
         code = request.GET.get('code')
         state = request.GET.get('state')
