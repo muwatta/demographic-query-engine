@@ -6,6 +6,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'hng_stage2.settings')
 application = get_wsgi_application()
 app = application
 
+# Run migrations automatically on Vercel
 if os.environ.get('VERCEL') or os.environ.get('VERCEL_ENV'):
     try:
         call_command('migrate', '--noinput')

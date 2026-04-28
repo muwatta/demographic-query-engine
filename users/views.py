@@ -20,9 +20,7 @@ from .permissions import IsAnalyst
 
 logger = logging.getLogger(__name__)
 
-# ---------- Helper ----------
 def exchange_github_code_for_user(code, redirect_uri, code_verifier=None):
-    """Exchange GitHub OAuth code for user instance (create/update)."""
     token_url = 'https://github.com/login/oauth/access_token'
     payload = {
         'client_id': settings.GITHUB_CLIENT_ID,
@@ -60,7 +58,6 @@ def exchange_github_code_for_user(code, redirect_uri, code_verifier=None):
             'avatar_url': user_info.get('avatar_url', '')
         }
     )
-    # Update fields if they changed (e.g., username renamed)
     if not created:
         user.username = user_info['login']
         user.email = user_info.get('email', user.email)
@@ -95,7 +92,6 @@ class GitHubAuthStartView(RateLimitedView):
         )
         return HttpResponseRedirect(auth_url)
 
-# ---------- Web OAuth Callback ----------
 class GitHubCallbackView(RateLimitedView):
     permission_classes = []
     def get(self, request):
@@ -120,7 +116,6 @@ class GitHubCallbackView(RateLimitedView):
             'access_token': access_token,
             'refresh_token': refresh_token
         })
-        # Secure cookies: HttpOnly, Secure (if HTTPS), SameSite=Lax
         response.set_cookie(
             'access_token', access_token,
             httponly=True, secure=settings.USE_HTTPS, samesite='Lax',
@@ -133,13 +128,12 @@ class GitHubCallbackView(RateLimitedView):
         )
         return response
 
-# ---------- CLI OAuth Start (PKCE) ----------
 class CLIAuthStartView(RateLimitedView):
+    permission_classes = []
     def get(self, request):
         verifier = generate_code_verifier()
         challenge = generate_code_challenge(verifier)
         state = generate_state()
-        # Store both state and verifier for validation
         cache.set(f'pkce_{state}', {'verifier': verifier, 'state': state}, timeout=300)
         redirect_uri = f"{settings.BASE_URL}/auth/github/cli-callback"
         auth_url = (
@@ -152,9 +146,8 @@ class CLIAuthStartView(RateLimitedView):
         )
         return JsonResponse({'auth_url': auth_url, 'state': state})
 
-# ---------- CLI Callback (PKCE) ----------
 class CLICallbackView(RateLimitedView):
-    # csrf_exempt is not needed because we are not using SessionAuthentication
+    permission_classes = []
     def post(self, request):
         code = request.data.get('code')
         state = request.data.get('state')
@@ -168,7 +161,6 @@ class CLICallbackView(RateLimitedView):
             logger.warning(f"PKCE validation failed for state {state}")
             return JsonResponse({'status': 'error', 'message': 'Invalid PKCE verifier or state'}, status=400)
         
-        # Clean up cache
         cache.delete(f'pkce_{state}')
         
         redirect_uri = f"{settings.BASE_URL}/auth/github/cli-callback"
@@ -184,19 +176,17 @@ class CLICallbackView(RateLimitedView):
             'refresh_token': refresh_token
         })
 
-# ---------- Refresh Token (with invalidation) ----------
 class RefreshTokenView(RateLimitedView):
+    permission_classes = []
     def post(self, request):
         refresh_token = request.data.get('refresh_token')
         if not refresh_token:
             return Response({'status': 'error', 'message': 'refresh_token required'}, status=400)
         
-        # Decode without verification first to check blacklist? We'll rely on decode_token
         payload = decode_token(refresh_token)
         if not payload:
             return Response({'status': 'error', 'message': 'Invalid refresh token'}, status=401)
         
-        # Optional: check if token is blacklisted (simplified – can use cache or DB)
         blacklist_key = f'token_blacklist:{refresh_token}'
         if cache.get(blacklist_key):
             return Response({'status': 'error', 'message': 'Token revoked'}, status=401)
@@ -206,7 +196,6 @@ class RefreshTokenView(RateLimitedView):
         except User.DoesNotExist:
             return Response({'status': 'error', 'message': 'User not found'}, status=401)
         
-        # Invalidate the old refresh token (add to blacklist)
         cache.set(blacklist_key, True, timeout=settings.REFRESH_TOKEN_LIFETIME_SECONDS)
         
         new_access = create_access_token(user.id)
@@ -217,10 +206,9 @@ class RefreshTokenView(RateLimitedView):
             'refresh_token': new_refresh
         })
 
-# ---------- Logout (revoke tokens) ----------
 class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
     def post(self, request):
-        # Invalidate refresh token if present
         refresh_token = request.data.get('refresh_token')
         if refresh_token:
             cache.set(f'token_blacklist:{refresh_token}', True, timeout=settings.REFRESH_TOKEN_LIFETIME_SECONDS)
@@ -230,9 +218,8 @@ class LogoutView(APIView):
         response.delete_cookie('refresh_token')
         return response
 
-# ---------- User Info (for authenticated users) ----------
 class UserInfoView(APIView):
-    permission_classes = [IsAuthenticated]  # Changed from IsAnalyst (adjust as needed)
+    permission_classes = [IsAuthenticated]
     def get(self, request):
         return Response({
             'id': request.user.id,
