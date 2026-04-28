@@ -9,6 +9,7 @@ class APIVersionMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
+        # Only require API version for paths starting with /api/ but NOT /api/auth/
         if request.path.startswith('/api/') and not request.path.startswith('/api/auth/'):
             version = request.headers.get('X-API-Version')
             if not version or version != '1':
