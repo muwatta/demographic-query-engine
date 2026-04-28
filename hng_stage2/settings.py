@@ -57,9 +57,10 @@ JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')  # Strong random string
 JWT_ALGORITHM = 'HS256'
 ACCESS_TOKEN_LIFETIME_SECONDS = 15 * 60   # 15 minutes
 REFRESH_TOKEN_LIFETIME_SECONDS = 7 * 24 * 3600  # 7 days
-CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOWED_ORIGINS = ['https://your-web-portal.vercel.app']
-
+CORS_ALLOWED_ORIGINS = [
+    "https://insighta-web-smoky.vercel.app",
+]
+CORS_ALLOW_CREDENTIALS = True
 ROOT_URLCONF = 'hng_stage2.urls'
 
 TEMPLATES = [
